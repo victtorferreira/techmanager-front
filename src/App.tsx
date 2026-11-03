@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Activity, BarChart3, CalendarDays, ChevronDown, ClipboardList, CreditCard, LayoutDashboard, Menu, Moon, Package, Search, Settings, Smartphone, Sun, Users, Wrench } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import Customers from './pages/Customers';
@@ -34,6 +34,7 @@ const titles: Record<string, string> = {
 };
 
 export default function App() {
+  const queryClient = useQueryClient();
   const [collapsed, setCollapsed] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => localStorage.getItem('techmanager_theme') === 'dark' ? 'dark' : 'light');
   const [token, setAuthToken] = useState(getToken());
@@ -71,6 +72,7 @@ export default function App() {
   }, []);
 
   function handleLogin(value: string, slug: string, account: SessionUser, name: string) {
+    queryClient.clear();
     setToken(value);
     setTenantSlug(slug);
     setTenantName(name);
