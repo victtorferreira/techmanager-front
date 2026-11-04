@@ -126,7 +126,7 @@ export default function PublicRepairRequest({ slug }: { slug: string }) {
         <div className="public-fields">
           <label>Nome completo<input autoComplete="name" maxLength={100} required value={form.name} onChange={e => update('name', e.target.value)} /></label>
           <label>Celular / WhatsApp<input autoComplete="tel" type="tel" maxLength={25} required placeholder="(11) 99999-9999" value={form.phone} onChange={e => update('phone', e.target.value)} /></label>
-          <label className="field-wide">E-mail <span className="field-optional">(opcional)</span><input autoComplete="email" type="email" maxLength={160} value={form.email} onChange={e => update('email', e.target.value)} /></label>
+          <label className="field-wide"><span>E-mail <span className="field-optional">(opcional)</span></span><input autoComplete="email" type="email" maxLength={160} value={form.email} onChange={e => update('email', e.target.value)} /></label>
         </div>
       </fieldset>
 
@@ -134,7 +134,7 @@ export default function PublicRepairRequest({ slug }: { slug: string }) {
         <div className="public-fields">
           <label>Marca<input maxLength={80} required placeholder="Ex.: Apple, Samsung, Motorola" value={form.brand} onChange={e => update('brand', e.target.value)} /></label>
           <label>Modelo<input maxLength={100} required placeholder="Ex.: iPhone 13, Galaxy A54" value={form.model} onChange={e => update('model', e.target.value)} /></label>
-          <label>Cor <span className="field-optional">(opcional)</span><input maxLength={50} value={form.color} onChange={e => update('color', e.target.value)} /></label>
+          <label><span>Cor <span className="field-optional">(opcional)</span></span><input maxLength={50} value={form.color} onChange={e => update('color', e.target.value)} /></label>
           <label>O aparelho liga?
             <select value={String(form.devicePowersOn)} onChange={e => update('devicePowersOn', e.target.value === 'true')}><option value="true">Sim</option><option value="false">Não</option></select>
           </label>
@@ -145,7 +145,7 @@ export default function PublicRepairRequest({ slug }: { slug: string }) {
             <select value={String(form.previousRepair)} onChange={e => update('previousRepair', e.target.value === 'true')}><option value="false">Não</option><option value="true">Sim</option></select>
           </label>
           <label className="field-wide">O que está acontecendo? Descreva o defeito<textarea required minLength={10} maxLength={2000} rows={4} placeholder="Quando começou? Acontece o tempo todo ou às vezes?" value={form.reportedIssue} onChange={e => update('reportedIssue', e.target.value)} /></label>
-          <label className="field-wide">O que acompanhará o aparelho? <span className="field-optional">(opcional)</span><input maxLength={500} placeholder="Ex.: carregador, capinha, chip" value={form.accessories} onChange={e => update('accessories', e.target.value)} /></label>
+          <label className="field-wide"><span>O que acompanhará o aparelho? <span className="field-optional">(opcional)</span></span><input maxLength={500} placeholder="Ex.: carregador, capinha, chip" value={form.accessories} onChange={e => update('accessories', e.target.value)} /></label>
         </div>
       </fieldset>
 
@@ -174,7 +174,7 @@ export default function PublicRepairRequest({ slug }: { slug: string }) {
           <label>Canal preferido<select value={form.preferredContact} onChange={e => update('preferredContact', e.target.value as RequestForm['preferredContact'])}>
             <option value="WHATSAPP">WhatsApp</option><option value="PHONE">Ligação</option><option value="EMAIL" disabled={!form.email}>E-mail</option>
           </select></label>
-          <label>Melhor horário <span className="field-optional">(opcional)</span><input maxLength={100} placeholder="Ex.: após as 14h" value={form.contactTime} onChange={e => update('contactTime', e.target.value)} /></label>
+          <label><span>Melhor horário <span className="field-optional">(opcional)</span></span><input maxLength={100} placeholder="Ex.: após as 14h" value={form.contactTime} onChange={e => update('contactTime', e.target.value)} /></label>
         </div>
       </fieldset>
 
