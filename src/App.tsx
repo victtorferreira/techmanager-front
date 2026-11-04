@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Activity, BarChart3, CalendarDays, ChevronDown, ClipboardList, CreditCard, LayoutDashboard, Menu, Moon, Package, Search, Settings, Smartphone, Sun, Users, Wrench } from 'lucide-react';
+import { Activity, BarChart3, CalendarDays, ChevronDown, ClipboardList, CreditCard, LayoutDashboard, Menu, Moon, Package, Search, Settings, ShieldCheck, ShoppingCart, Smartphone, Sun, Truck, Users, Wrench } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import Customers from './pages/Customers';
 import Orders from './pages/Orders';
@@ -22,7 +22,10 @@ const nav = [
   { label: 'Ordens de serviço', to: '/ordens', icon: ClipboardList },
   { label: 'Clientes', to: '/clientes', icon: Users },
   { label: 'Produtos e estoque', to: '/produtos', icon: Package },
+  { label: 'Fornecedores', to: '/fornecedores', icon: Truck },
+  { label: 'Compras', to: '/compras', icon: ShoppingCart },
   { label: 'Vendas', to: '/vendas', icon: CreditCard },
+  { label: 'Garantias', to: '/garantias', icon: ShieldCheck },
   { label: 'Agenda', to: '/agenda', icon: CalendarDays },
   { label: 'Financeiro', to: '/financeiro', icon: BarChart3 },
   { label: 'Relatórios', to: '/relatorios', icon: Activity },
@@ -30,6 +33,7 @@ const nav = [
 const titles: Record<string, string> = {
   '/': 'Visão geral', '/ordens': 'Ordens de serviço', '/clientes': 'Clientes',
   '/produtos': 'Produtos e estoque', '/vendas': 'Vendas', '/agenda': 'Agenda',
+  '/fornecedores': 'Fornecedores', '/compras': 'Compras', '/garantias': 'Garantias',
   '/financeiro': 'Financeiro', '/relatorios': 'Relatórios', '/configuracoes': 'Configurações',
 };
 
