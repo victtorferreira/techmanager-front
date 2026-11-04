@@ -46,7 +46,7 @@ export default function App() {
   const tenantQuery = useQuery({ queryKey: ['tenant-profile'], queryFn: () => api<{ id: string; name: string; slug: string; logo: string | null }>('/tenant/profile'), enabled: Boolean(token) });
   const tenantName = tenantQuery.data?.name || storedTenantName || 'techmanager';
   const tenantLogo = tenantQuery.data?.logo;
-  const title = titles[location.pathname] || 'TechManager';
+  const title = (location.pathname.startsWith('/clientes/') ? 'Ficha do cliente' : titles[location.pathname]) || 'TechManager';
   const publicRequestSlug = location.pathname.match(/^\/solicitar\/([^/]+)\/?$/)?.[1];
 
   useEffect(() => {
@@ -107,7 +107,7 @@ export default function App() {
     </aside>
     <main className="main-area">
       <header className="topbar"><div><div className="breadcrumb">Painel <span>/</span> <strong>{title}</strong></div><h1>{title}</h1></div><div className="top-actions"><button className="icon-btn" aria-label="Buscar" title="Buscar"><Search size={18}/></button><button className="icon-btn theme-toggle" aria-label={theme === 'dark' ? 'Ativar modo claro' : 'Ativar modo escuro'} title={theme === 'dark' ? 'Modo claro' : 'Modo escuro'} onClick={() => setTheme(current => current === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={18}/> : <Moon size={18}/>}</button><NotificationsButton tenantSlug={getTenantSlug()}/><div className="top-divider"/><UserMenu user={user} onLogout={handleLogout}/></div></header>
-      <div className="page-content"><Routes><Route path="/" element={<Dashboard tenantSlug={getTenantSlug()}/>}/><Route path="/ordens" element={<Orders/>}/><Route path="/clientes" element={<Customers/>}/><Route path="/produtos" element={<Products/>}/><Route path="/vendas" element={<Sales/>}/><Route path="/agenda" element={<Agenda/>}/><Route path="/financeiro" element={<Finance/>}/><Route path="/relatorios" element={<Reports/>}/><Route path="/configuracoes" element={<SettingsPage canEdit={user.role === "OWNER" || user.role === "ADMIN"}/>}/><Route path="*" element={<div className="placeholder-panel"><div className="empty-icon"><Wrench/></div><h2>Módulo em construção</h2><p>Esta área será implementada nas próximas etapas do TechManager.</p></div>}/></Routes></div>
+      <div className="page-content"><Routes><Route path="/" element={<Dashboard tenantSlug={getTenantSlug()}/>}/><Route path="/ordens" element={<Orders/>}/><Route path="/clientes/:customerId?" element={<Customers/>}/><Route path="/produtos" element={<Products/>}/><Route path="/vendas" element={<Sales/>}/><Route path="/agenda" element={<Agenda/>}/><Route path="/financeiro" element={<Finance/>}/><Route path="/relatorios" element={<Reports/>}/><Route path="/configuracoes" element={<SettingsPage canEdit={user.role === "OWNER" || user.role === "ADMIN"}/>}/><Route path="*" element={<div className="placeholder-panel"><div className="empty-icon"><Wrench/></div><h2>Módulo em construção</h2><p>Esta área será implementada nas próximas etapas do TechManager.</p></div>}/></Routes></div>
     </main>
   </div>;
 }

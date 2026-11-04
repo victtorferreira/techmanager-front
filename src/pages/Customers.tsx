@@ -1,6 +1,6 @@
-import { ChangeEvent, FormEvent, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { CalendarDays, Camera, Check, Copy, Eye, FileDown, FileText, HandCoins, IdCard, LoaderCircle, Mail, MapPin, MessageCircle, Pencil, Phone, Plus, Receipt, Search, ShoppingBag, ShoppingCart, SlidersHorizontal, Ticket, UserRound, Users, WalletCards, Wrench, X } from 'lucide-react';
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, CalendarDays, Camera, Check, Copy, Eye, FileDown, FileText, HandCoins, IdCard, LoaderCircle, Mail, MapPin, MessageCircle, Pencil, Phone, Plus, Receipt, Search, ShoppingBag, ShoppingCart, SlidersHorizontal, Ticket, UserRound, Users, WalletCards, Wrench, X } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 
@@ -26,9 +26,10 @@ const avatarTones = ['purple', 'pink', 'blue', 'orange', 'green'];
 export default function Customers() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [modal, setModal] = useState<'form' | 'profile' | null>(null);
+  const { customerId } = useParams<{ customerId: string }>();
+  const location = useLocation();
+  const [modal, setModal] = useState<'form' | null>(null);
   const [editing, setEditing] = useState<Customer | null>(null);
-  const [selected, setSelected] = useState<Customer | null>(null);
   const [form, setForm] = useState<CustomerForm>(emptyForm);
   const [zipFeedback, setZipFeedback] = useState('');
   const [photoFeedback, setPhotoFeedback] = useState('');
@@ -42,6 +43,7 @@ export default function Customers() {
   const salesQuery = useQuery({ queryKey: ['sales'], queryFn: () => api<Sale[]>('/sales') });
   const ordersQuery = useQuery({ queryKey: ['orders'], queryFn: () => api<Order[]>('/service-orders') });
   const customers = customersQuery.data ?? [];
+  const selected = customers.find(customer => customer.id === customerId);
   const sales = salesQuery.data ?? [];
   const orders = ordersQuery.data ?? [];
 
@@ -160,7 +162,17 @@ export default function Customers() {
     const link = document.createElement('a'); link.href = url; link.download = 'clientes-techmanager.csv'; link.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  function backToCustomers() {
+    setModal(null);
+    if (location.state?.fromCustomerList) navigate(-1);
+    else navigate('/clientes', { replace: true });
+  }
+
+  useEffect(() => { setModal(null); window.scrollTo(0, 0); }, [customerId]);
+
   return <div className="page-stack customer-page">
+    {!customerId ? <>
+
     <div className="customer-page-heading"><div><div className="customer-breadcrumb"><Users size={13}/> Cadastros <span>/</span> Clientes</div><h2>Clientes</h2><p>Cadastro, histórico de atendimentos e compras registradas.</p></div><button className="primary-btn" onClick={openNewCustomer}><Plus size={17}/> Novo cliente</button></div>
 
     <section className="customer-stats">
@@ -190,15 +202,23 @@ export default function Customers() {
           <td className="customer-spend"><strong>{money(spent)}</strong><small>{customerSales.length} compra(s)</small></td>
           <td>{dateLabel(latest)}</td><td><span className="customer-order-count">{customerOrders.length}</span></td>
           <td><div className="customer-status-tags"><span className={`customer-tag ${customer.active ? "" : "inactive"}`}>{customer.active ? "Ativo" : "Inativo"}</span>{customer.classification !== "NORMAL" && <span className={`customer-tag customer-class-${customer.classification.toLowerCase()}`}>{customer.classification === "VIP" ? "★ VIP" : "◆ Premium"}</span>}</div></td>
-          <td><div className="customer-row-actions"><button className="customer-open-btn" onClick={() => { setSelected(customer); setModal('profile'); }}><Eye size={13}/> Abrir ficha</button><button className="customer-icon-btn whatsapp-action" title="WhatsApp" aria-label={`Abrir WhatsApp de ${customer.name}`} disabled={!customer.phone} onClick={() => window.open(`https://wa.me/${digits(customer.phone)}`, '_blank', 'noopener,noreferrer')}><MessageCircle size={15}/></button><button className="customer-icon-btn" title={copied === customer.id ? 'Telefone copiado' : 'Copiar telefone'} aria-label={`Copiar telefone de ${customer.name}`} disabled={!customer.phone} onClick={() => copyPhone(customer)}><Copy size={14}/></button><button className="customer-icon-btn" title="Editar cliente" aria-label={`Editar ${customer.name}`} onClick={() => openEditCustomer(customer)}><Pencil size={14}/></button></div></td>
+          <td><div className="customer-row-actions"><button className="customer-open-btn" onClick={() => navigate(`/clientes/${encodeURIComponent(customer.id)}`, { state: { fromCustomerList: true } })}><Eye size={13}/> Abrir ficha</button><button className="customer-icon-btn whatsapp-action" title="WhatsApp" aria-label={`Abrir WhatsApp de ${customer.name}`} disabled={!customer.phone} onClick={() => window.open(`https://wa.me/${digits(customer.phone)}`, '_blank', 'noopener,noreferrer')}><MessageCircle size={15}/></button><button className="customer-icon-btn" title={copied === customer.id ? 'Telefone copiado' : 'Copiar telefone'} aria-label={`Copiar telefone de ${customer.name}`} disabled={!customer.phone} onClick={() => copyPhone(customer)}><Copy size={14}/></button><button className="customer-icon-btn" title="Editar cliente" aria-label={`Editar ${customer.name}`} onClick={() => openEditCustomer(customer)}><Pencil size={14}/></button></div></td>
         </tr>;
       })}</tbody></table></div>}
       {!customersQuery.isLoading && !customersQuery.error && customers.length > 0 && <div className="customer-table-footer"><span>Exibindo {visibleCustomers.length} de {customers.length} clientes</span><span>Totais baseados nas vendas e ordens carregadas pelo sistema</span></div>}
     </section>
 
+    </> : selected ? <>
+      {(salesQuery.error || ordersQuery.error) && <p className="feedback error" role="alert">Não foi possível carregar todo o histórico do cliente. <button type="button" className="secondary-btn" onClick={() => { void salesQuery.refetch(); void ordersQuery.refetch(); }}>Tentar novamente</button></p>}
+      <CustomerProfilePage key={selected.id} customer={selected} sales={salesByCustomer.get(selected.id) ?? []} orders={ordersByCustomer.get(selected.id) ?? []} onEdit={() => openEditCustomer(selected)} onBack={backToCustomers} onNewSale={() => navigate(`/vendas?customerId=${encodeURIComponent(selected.id)}`)} />
+    </> : <section className="panel customer-profile-state">
+      <button type="button" className="secondary-btn" onClick={backToCustomers}><ArrowLeft size={16}/> Voltar para clientes</button>
+      {customersQuery.isLoading ? <p className="feedback" role="status">Carregando ficha do cliente...</p> : customersQuery.error ? <><p className="feedback error" role="alert">Não foi possível carregar a ficha do cliente.</p><button type="button" className="secondary-btn" onClick={() => void customersQuery.refetch()}>Tentar novamente</button></> : <div className="empty-state"><UserRound size={28}/><strong>Cliente não encontrado</strong><span>Este cadastro não está disponível na lista da assistência.</span></div>}
+    </section>}
+
     {modal === "form" && <CustomerFormModal form={form} editing={Boolean(editing)} isPending={saveCustomer.isPending} error={saveCustomer.error?.message ?? ""} zipFeedback={zipFeedback} photoFeedback={photoFeedback} onChange={updateForm} onZipLookup={lookupZip} onPhoto={selectPhoto} onClose={() => setModal(null)} onSubmit={submit} />}
 
-    {modal === "profile" && selected && <CustomerProfileModal customer={selected} sales={salesByCustomer.get(selected.id) ?? []} orders={ordersByCustomer.get(selected.id) ?? []} onEdit={() => openEditCustomer(selected)} onClose={() => setModal(null)} onNewSale={() => { setModal(null); navigate(`/vendas?customerId=${encodeURIComponent(selected.id)}`); }} />}
+
   </div>;
 }
 
@@ -283,15 +303,17 @@ function CustomerFormModal({ form, editing, isPending, error, zipFeedback, photo
 }
 
 type CustomerProfileTab = 'SUMMARY' | 'SALES' | 'CREDIT' | 'ORDERS' | 'QUOTES' | 'WARRANTIES' | 'CREDITS';
-type CustomerProfileModalProps = { customer: Customer; sales: Sale[]; orders: Order[]; onEdit: () => void; onClose: () => void; onNewSale: () => void };
+type CustomerProfilePageProps = { customer: Customer; sales: Sale[]; orders: Order[]; onEdit: () => void; onBack: () => void; onNewSale: () => void };
 const paymentLabels: Record<string, string> = { CASH: 'Dinheiro', PIX: 'Pix', CREDIT_CARD: 'Cartão de crédito', DEBIT_CARD: 'Cartão de débito', BANK_TRANSFER: 'Transferência', OTHER: 'Outro' };
 const orderStatusLabels: Record<string, string> = { RECEIVED: 'Recebida', DIAGNOSIS: 'Em diagnóstico', WAITING_APPROVAL: 'Aguardando aprovação', WAITING_PART: 'Aguardando peça', IN_REPAIR: 'Em reparo', TESTING: 'Em testes', READY: 'Pronta', DELIVERED: 'Entregue', CANCELED: 'Cancelada', NO_REPAIR: 'Sem conserto' };
 const profileMoney = (value: number) => money(value);
 const profileDate = (value: string) => new Date(value).toLocaleDateString('pt-BR');
 const profileDateTime = (value: string) => new Date(value).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 
-function CustomerProfileModal({ customer, sales, orders, onEdit, onClose, onNewSale }: CustomerProfileModalProps) {
+function CustomerProfilePage({ customer, sales, orders, onEdit, onBack, onNewSale }: CustomerProfilePageProps) {
   const [tab, setTab] = useState<CustomerProfileTab>('SUMMARY');
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => { headingRef.current?.focus({ preventScroll: true }); }, [customer.id]);
   const total = sales.reduce((sum, sale) => sum + Number(sale.total), 0);
   const average = sales.length ? total / sales.length : 0;
   const lastSale = sales.reduce<string | undefined>((last, sale) => !last || sale.createdAt > last ? sale.createdAt : last, undefined);
@@ -317,13 +339,11 @@ function CustomerProfileModal({ customer, sales, orders, onEdit, onClose, onNewS
     return <div className="customer-profile-unavailable"><span><Ticket size={19}/></span><strong>{title} ainda não está disponível</strong><p>Esta área será preenchida quando o recurso correspondente estiver habilitado no sistema.</p></div>;
   }
 
-  return <div className="modal-backdrop customer-profile-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
-    <section className="customer-profile-modal customer-profile-expanded" aria-label={`Ficha de ${customer.name}`}>
-      <div className="customer-profile-scroll">
-        <div className="customer-profile-breadcrumb"><button onClick={onClose}>← <span>Todos os clientes</span></button><span>Ficha do cliente</span></div>
+  return <section className="customer-profile-page" aria-label={`Ficha de ${customer.name}`}>
+        <div className="customer-profile-breadcrumb"><button type="button" onClick={onBack}><ArrowLeft size={16}/><span>Voltar para clientes</span></button><span>Ficha do cliente</span></div>
         <header className="customer-profile-main-header">
-          <div className="customer-profile-title"><span className={`customer-avatar ${customer.photoData ? 'profile-has-photo' : 'purple'}`}>{customer.photoData ? <img src={customer.photoData} alt=""/> : initials(customer.name)}</span><div className="customer-profile-heading-copy"><h2>{customer.name}</h2><div className="customer-profile-tags"><span>{customer.customerType === 'COMPANY' ? 'Pessoa jurídica' : 'Pessoa física'}</span><span className={`customer-tag ${customer.active ? '' : 'inactive'}`}>{customer.active ? 'Ativo' : 'Inativo'}</span>{customer.classification !== 'NORMAL' && <span className={`customer-tag customer-class-${customer.classification.toLowerCase()}`}>★ {customer.classification}</span>}</div><div className="customer-profile-meta">{customer.document && <span><IdCard size={13}/>{customer.document}</span>}{customer.phone && <a href={`tel:${customer.phone}`}><Phone size={13}/>{customer.phone}</a>}{customer.email && <a href={`mailto:${customer.email}`}><Mail size={13}/>{customer.email}</a>}{customer.city && <span><MapPin size={13}/>{customer.city}{customer.state ? ` - ${customer.state}` : ''}</span>}<span><CalendarDays size={13}/>Cliente desde {profileDate(customer.createdAt)}</span></div></div></div>
-          <div className="customer-profile-head-actions"><button className="secondary-btn" onClick={onEdit}><Pencil size={14}/> Editar</button><button className="customer-icon-btn" title="Fechar ficha" aria-label="Fechar ficha" onClick={onClose}><X size={15}/></button></div>
+          <div className="customer-profile-title"><span className={`customer-avatar ${customer.photoData ? 'profile-has-photo' : 'purple'}`}>{customer.photoData ? <img src={customer.photoData} alt=""/> : initials(customer.name)}</span><div className="customer-profile-heading-copy"><h2 ref={headingRef} tabIndex={-1}>{customer.name}</h2><div className="customer-profile-tags"><span>{customer.customerType === 'COMPANY' ? 'Pessoa jurídica' : 'Pessoa física'}</span><span className={`customer-tag ${customer.active ? '' : 'inactive'}`}>{customer.active ? 'Ativo' : 'Inativo'}</span>{customer.classification !== 'NORMAL' && <span className={`customer-tag customer-class-${customer.classification.toLowerCase()}`}>★ {customer.classification}</span>}</div><div className="customer-profile-meta">{customer.document && <span><IdCard size={13}/>{customer.document}</span>}{customer.phone && <a href={`tel:${customer.phone}`}><Phone size={13}/>{customer.phone}</a>}{customer.email && <a href={`mailto:${customer.email}`}><Mail size={13}/>{customer.email}</a>}{customer.city && <span><MapPin size={13}/>{customer.city}{customer.state ? ` - ${customer.state}` : ''}</span>}<span><CalendarDays size={13}/>Cliente desde {profileDate(customer.createdAt)}</span></div></div></div>
+          <div className="customer-profile-head-actions"><button className="secondary-btn" onClick={onEdit}><Pencil size={14}/> Editar</button></div>
         </header>
 
         
@@ -389,7 +409,5 @@ function CustomerProfileModal({ customer, sales, orders, onEdit, onClose, onNewS
         {tab === 'QUOTES' && unavailable('O módulo de orçamentos')}
         {tab === 'WARRANTIES' && unavailable('O controle de garantias')}
         {tab === 'CREDITS' && unavailable('O controle de vales e créditos')}
-      </div>
-    </section>
-  </div>;
+  </section>;
 }
