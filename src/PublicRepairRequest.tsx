@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react';
+import { ChangeEvent, FormEvent, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { CheckCircle2, Smartphone, Wrench } from 'lucide-react';
 import { publicApi } from './api';
@@ -10,19 +10,54 @@ type RequestForm = {
   reportedIssue: string; accessories: string; devicePowersOn: boolean; liquidDamage: boolean;
   previousRepair: boolean; preferredContact: 'WHATSAPP' | 'PHONE' | 'EMAIL'; contactTime: string;
   privacyAccepted: boolean;
+  deliveryMethod: 'DROP_OFF' | 'PICKUP'; pickupAddress: string; devicePhotos: string[];
 };
 
 const emptyForm: RequestForm = {
   name: '', phone: '', email: '', brand: '', model: '', color: '', reportedIssue: '', accessories: '',
   devicePowersOn: true, liquidDamage: false, previousRepair: false,
   preferredContact: 'WHATSAPP', contactTime: '', privacyAccepted: false,
+  deliveryMethod: 'DROP_OFF', pickupAddress: '', devicePhotos: [],
 };
+
+async function preparePhoto(file: File): Promise<string> {
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 10 * 1024 * 1024) {
+    throw new Error('Escolha fotos JPG, PNG ou WebP de até 10 MB cada.');
+  }
+  const url = URL.createObjectURL(file);
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('Não foi possível abrir a foto. Escolha outra imagem.'));
+      img.src = url;
+    });
+    const scale = Math.min(1, 1600 / Math.max(image.width, image.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(image.width * scale));
+    canvas.height = Math.max(1, Math.round(image.height * scale));
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Não foi possível preparar a foto.');
+    context.fillStyle = '#fff';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    for (const quality of [0.82, 0.65, 0.45]) {
+      const photo = canvas.toDataURL('image/jpeg', quality);
+      if (photo.length <= 819223) return photo;
+    }
+    throw new Error('A foto ficou muito grande. Escolha uma imagem menor.');
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
 
 export default function PublicRepairRequest({ slug }: { slug: string }) {
   const [form, setForm] = useState(emptyForm);
   const [result, setResult] = useState<RequestResult | null>(null);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [preparingPhotos, setPreparingPhotos] = useState(false);
+  const [photoError, setPhotoError] = useState('');
   const assistanceQuery = useQuery({
     queryKey: ['public-assistance', slug],
     queryFn: () => publicApi<Assistance>(`/public/repair-requests/${encodeURIComponent(slug)}`),
@@ -32,13 +67,34 @@ export default function PublicRepairRequest({ slug }: { slug: string }) {
     setForm(current => ({ ...current, [key]: value }));
   }
 
+  async function selectPhotos(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = '';
+    setPhotoError('');
+    if (!files.length) return;
+    if (form.devicePhotos.length + files.length > 3) {
+      setPhotoError('Você pode anexar até 3 fotos. Remova uma foto para escolher outra.');
+      return;
+    }
+    setPreparingPhotos(true);
+    try {
+      const photos = await Promise.all(files.map(preparePhoto));
+      setForm(current => ({ ...current, devicePhotos: [...current.devicePhotos, ...photos] }));
+    } catch (err) {
+      setPhotoError(err instanceof Error ? err.message : 'Não foi possível preparar as fotos.');
+    } finally {
+      setPreparingPhotos(false);
+    }
+  }
+
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (preparingPhotos || submitting) return;
     setError('');
     setSubmitting(true);
     try {
       const response = await publicApi<RequestResult>(`/public/repair-requests/${encodeURIComponent(slug)}`, {
-        method: 'POST', body: JSON.stringify(form),
+        method: 'POST', body: JSON.stringify({ ...form, pickupAddress: form.deliveryMethod === 'PICKUP' ? form.pickupAddress : undefined }),
       });
       setResult(response);
     } catch (err) {
@@ -93,6 +149,26 @@ export default function PublicRepairRequest({ slug }: { slug: string }) {
         </div>
       </fieldset>
 
+      <fieldset disabled={submitting || preparingPhotos}><legend>Fotos do aparelho <span className="field-optional">(opcional)</span></legend>
+        <p className="public-help">Mostre o aparelho e os danos visíveis. Até 3 fotos JPG, PNG ou WebP, de até 10 MB cada. As imagens serão otimizadas para o envio.</p>
+        <label className="public-photo-input">Anexar fotos<input type="file" accept="image/jpeg,image/png,image/webp" multiple disabled={form.devicePhotos.length >= 3} onChange={selectPhotos}/></label>
+        {preparingPhotos && <p className="public-help" role="status">Preparando fotos...</p>}
+        {photoError && <p className="login-error" role="alert">{photoError}</p>}
+        <div className="device-photo-grid">{form.devicePhotos.map((photo, index) => <div className="device-photo" key={index}>
+          <img src={photo} alt={`Foto ${index + 1} do aparelho`}/>
+          <button type="button" onClick={() => setForm(current => ({ ...current, devicePhotos: current.devicePhotos.filter((_, i) => i !== index) }))} aria-label={`Remover foto ${index + 1}`}>Remover</button>
+        </div>)}</div>
+      </fieldset>
+
+      <fieldset><legend>Como o aparelho chegará à assistência?</legend>
+        <div className="public-delivery-options">
+          <label><input type="radio" name="deliveryMethod" value="DROP_OFF" checked={form.deliveryMethod === 'DROP_OFF'} onChange={() => update('deliveryMethod', 'DROP_OFF')}/> Vou levar até a assistência</label>
+          <label><input type="radio" name="deliveryMethod" value="PICKUP" checked={form.deliveryMethod === 'PICKUP'} onChange={() => update('deliveryMethod', 'PICKUP')}/> Quero que a assistência busque meu aparelho</label>
+        </div>
+        {form.deliveryMethod === 'PICKUP' && <div className="public-fields public-pickup-address"><label className="field-wide">Endereço completo para coleta<textarea autoComplete="street-address" required minLength={10} maxLength={500} rows={3} placeholder="Rua, número, complemento, bairro, cidade, estado e CEP. Inclua um ponto de referência, se necessário." value={form.pickupAddress} onChange={e => update('pickupAddress', e.target.value)}/></label></div>}
+        {form.deliveryMethod === 'PICKUP' && <p className="public-help">A assistência entrará em contato para combinar a disponibilidade, o horário e eventuais custos da coleta.</p>}
+      </fieldset>
+
       <fieldset><legend>Como prefere o contato?</legend>
         <div className="public-fields">
           <label>Canal preferido<select value={form.preferredContact} onChange={e => update('preferredContact', e.target.value as RequestForm['preferredContact'])}>
@@ -105,7 +181,7 @@ export default function PublicRepairRequest({ slug }: { slug: string }) {
       <label className="public-consent"><input type="checkbox" required checked={form.privacyAccepted} onChange={e => update('privacyAccepted', e.target.checked)} /><span>Autorizo {assistance.name} a usar estes dados para avaliar esta solicitação e entrar em contato comigo.</span></label>
       <p className="public-privacy-note"><Wrench size={14}/> Não informe senhas, PIN ou código de desbloqueio do aparelho.</p>
       {error && <div className="login-error" role="alert">{error}</div>}
-      <button className="primary-btn public-submit" disabled={submitting}>{submitting ? 'Enviando...' : 'Enviar solicitação'}</button>
+      <button className="primary-btn public-submit" disabled={submitting || preparingPhotos}>{submitting ? 'Enviando...' : preparingPhotos ? 'Preparando fotos...' : 'Enviar solicitação'}</button>
     </form>
     <footer className="public-footer">Atendimento técnico com cuidado e transparência.</footer>
   </main>;

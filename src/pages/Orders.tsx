@@ -5,6 +5,7 @@ import { api } from '../api';
 type Order = {
   id: string; number: number; reportedIssue: string; status: string; createdAt: string;
   publicRequest: boolean; accessories?: string | null; devicePowersOn?: boolean | null;
+  deliveryMethod?: 'DROP_OFF' | 'PICKUP' | null; pickupAddress?: string | null; devicePhotos?: string[];
   liquidDamage?: boolean | null; previousRepair?: boolean | null; preferredContact?: string | null;
   customer: { name: string; phone?: string | null };
   device: { brand: string; model: string; color?: string | null };
@@ -25,7 +26,9 @@ export default function Orders() {
         <td className="order-number">#{String(order.number).padStart(5, '0')}</td>
         <td>{order.customer.name}<small className="table-subtext">{order.customer.phone || 'Sem telefone'}</small></td>
         <td>{order.device.brand} {order.device.model}{order.device.color && <small className="table-subtext">{order.device.color}</small>}</td>
-        <td className="issue-cell">{order.reportedIssue}</td>
+        <td className="issue-cell">{order.reportedIssue}{Boolean(order.devicePhotos?.length) && <details className="order-photos"><summary>Ver fotos ({order.devicePhotos!.length})</summary><div className="device-photo-grid">{order.devicePhotos!.map((photo, index) => <a key={index} href={photo} download={`OS-${order.number}-foto-${index + 1}.jpg`} title="Baixar foto"><img src={photo} alt={`Foto ${index + 1} do aparelho da OS ${order.number}`} loading="lazy"/></a>)}</div></details>}
+          {order.deliveryMethod && <small className="table-subtext"><strong>{order.deliveryMethod === 'PICKUP' ? 'Coleta solicitada' : 'Cliente levará à assistência'}</strong>{order.deliveryMethod === 'PICKUP' && <span className="pickup-address">{order.pickupAddress}</span>}</small>}
+        </td>
         <td className="triage-cell">{order.publicRequest ? <>{order.devicePowersOn ? 'Liga' : 'Não liga'} · {order.liquidDamage ? 'Teve contato com líquido' : 'Sem contato com líquido'} · {order.previousRepair ? 'Já reparado' : 'Sem reparo anterior'}{order.accessories && <small className="table-subtext">Acompanha: {order.accessories}</small>}{order.preferredContact && <small className="table-subtext">Contato: {order.preferredContact === 'WHATSAPP' ? 'WhatsApp' : order.preferredContact === 'PHONE' ? 'Ligação' : 'E-mail'}</small>}</> : '—'}</td>
         <td>{order.publicRequest ? <span className="origin-pill">Site</span> : 'Balcão'}</td>
         <td><span className={`status-pill ${order.status === 'READY' ? 'green' : order.status === 'RECEIVED' ? 'orange' : 'blue'}`}>{labels[order.status] || order.status}</span></td>
