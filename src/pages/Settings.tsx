@@ -41,8 +41,8 @@ export default function SettingsPage({ canEdit }: { canEdit: boolean }) {
     event.target.value = '';
     if (!file) return;
     setSuccess(false); setLogoError('');
-    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 256 * 1024) {
-      setLogoError('Selecione uma imagem PNG, JPG ou WebP de até 256 KB.'); return;
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 2 * 1024 * 1024) {
+      setLogoError('Selecione uma imagem PNG, JPG ou WebP de até 2 MB.'); return;
     }
     setReadingLogo(true);
     try {
@@ -76,7 +76,7 @@ export default function SettingsPage({ canEdit }: { canEdit: boolean }) {
               {canEdit && <><input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp" hidden aria-label="Selecionar logo da assistência" disabled={updateProfile.isPending || readingLogo} onChange={selectLogo}/>
                 <button type="button" className="secondary-btn" disabled={updateProfile.isPending || readingLogo} onClick={() => fileInput.current?.click()}><Upload size={15}/>{readingLogo ? 'Carregando...' : logo ? 'Trocar logo' : 'Enviar logo'}</button>
                 {logo && <button type="button" className="secondary-btn" disabled={updateProfile.isPending || readingLogo} onClick={() => { setLogo(null); setLogoError(''); setSuccess(false); }}><Trash2 size={15}/>Remover logo</button>}</>}
-              <small className="tenant-settings-hint">PNG, JPG ou WebP de até 256 KB. Prefira uma imagem quadrada.</small>
+              <small className="tenant-settings-hint">PNG, JPG ou WebP de até 2 MB. Prefira uma imagem quadrada.</small>
             </div>
           </div>
           {logoError && <p className="feedback error" role="alert">{logoError}</p>}
