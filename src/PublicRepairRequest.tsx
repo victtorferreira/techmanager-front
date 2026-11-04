@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { CheckCircle2, Smartphone, Wrench } from 'lucide-react';
 import { publicApi } from './api';
 
-type Assistance = { name: string; phone: string | null; slug: string };
+type Assistance = { logo: string | null; name: string; phone: string | null; slug: string };
 type RequestResult = { number: number; tenantName: string };
 type RequestForm = {
   name: string; phone: string; email: string; brand: string; model: string; color: string;
@@ -62,7 +62,7 @@ export default function PublicRepairRequest({ slug }: { slug: string }) {
 
   return <main className="public-page">
     <form className="public-card public-form" onSubmit={submit}>
-      <div className="public-brand"><div className="brand-mark"><Smartphone size={21}/></div><div><span>Solicitação de reparo</span><strong>{assistance.name}</strong></div></div>
+      <div className="public-brand"><div className={`brand-mark ${assistance.logo ? 'has-tenant-logo' : ''}`}>{assistance.logo ? <img src={assistance.logo} alt={`Logo de ${assistance.name}`}/> : <Smartphone size={21}/>}</div><div><span>Solicitação de reparo</span><strong>{assistance.name}</strong></div></div>
       <h1>Conte o que aconteceu</h1>
       <p className="public-intro">Informe seus dados e os detalhes do aparelho. A assistência entrará em contato para confirmar o atendimento.</p>
 
