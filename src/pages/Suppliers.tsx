@@ -2,6 +2,7 @@ import { FormEvent, ReactNode, useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Pencil, Plus, Search, Trash2, Truck, X } from 'lucide-react';
 import { api } from '../api';
+import { Link } from 'react-router-dom';
 
 type SupplierForm = {
   name: string; tradeName: string; document: string; contactName: string; phone: string;
@@ -102,7 +103,7 @@ export default function Suppliers() {
         <td><strong className="order-number">{supplier.name}</strong>{supplier.tradeName && <small className="table-subtext">{supplier.tradeName}</small>}<small className="table-subtext">{formatDocument(supplier.document)}</small></td>
         <td>{supplier.contactName || '—'}{supplier.phone && <a className="supplier-contact" href={`tel:${supplier.phone.replace(/[^\d+]/g, '')}`}>{supplier.phone}</a>}{supplier.whatsapp && <span className="supplier-contact">WhatsApp: {supplier.whatsapp}</span>}{supplier.email && <a className="supplier-contact" href={`mailto:${supplier.email}`}>{supplier.email}</a>}</td>
         <td>{[supplier.city, supplier.state].filter(Boolean).join(' / ') || '—'}{supplier.address && <small className="table-subtext supplier-text">{supplier.address}</small>}</td>
-        <td className="supplier-text">{supplier.paymentTerms || 'Não informado'}</td>
+        <td className="supplier-text">{supplier.paymentTerms || 'Não informado'}<Link className="supplier-contact" to={`/produtos?supplierId=${supplier.id}`}>Histórico de compras</Link></td>
         <td><span className={`status-pill ${supplier.active ? 'green' : 'supplier-inactive'}`}>{supplier.active ? 'Ativo' : 'Inativo'}</span></td>
         <td><div className="supplier-actions"><button className="icon-btn" title="Editar fornecedor" aria-label={`Editar ${supplier.name}`} onClick={() => openEditor(supplier)}><Pencil size={15}/></button><button className="icon-btn supplier-delete" title="Excluir fornecedor" aria-label={`Excluir ${supplier.name}`} onClick={() => { remove.reset(); setDeleting(supplier); setFeedback(''); }}><Trash2 size={15}/></button></div></td>
       </tr>)}</tbody></table></div>}

@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Banknote, Package, Plus, ShoppingCart, Trash2 } from 'lucide-react';
 import { api } from '../api';
 
-type Product = { id: string; name: string; sku?: string | null; stockQuantity: number; salePrice: string | number };
+type Product = { id: string; name: string; sku?: string | null; stockQuantity: number; salePrice: string | number; active: boolean };
 type Customer = { id: string; name: string; phone?: string | null };
 type SaleLine = { productId: string; productName: string; sku?: string | null; quantity: number; unitPrice: string | number; total: string | number };
 type Sale = { id: string; number: number; createdAt: string; paymentMethod: string; subtotal: string | number; total: string | number; customer?: { name: string } | null; seller?: { name: string } | null; items: SaleLine[] };
@@ -27,7 +27,7 @@ export default function Sales() {
   const productsQuery = useQuery({ queryKey: ['products'], queryFn: () => api<Product[]>('/products') });
   const customersQuery = useQuery({ queryKey: ['customers'], queryFn: () => api<Customer[]>('/customers') });
   const salesQuery = useQuery({ queryKey: ['sales'], queryFn: () => api<Sale[]>('/sales') });
-  const products = productsQuery.data ?? [];
+  const products = (productsQuery.data ?? []).filter(product => product.active);
   const selectedProduct = products.find(product => product.id === productId);
   const cartLines = Object.entries(cart).map(([id, count]) => ({ product: products.find(product => product.id === id), quantity: count })).filter((line): line is { product: Product; quantity: number } => Boolean(line.product));
   const total = useMemo(() => cartLines.reduce((sum, line) => sum + Number(line.product.salePrice) * line.quantity, 0), [cartLines]);
@@ -39,6 +39,7 @@ export default function Sales() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['sales'] }),
         queryClient.invalidateQueries({ queryKey: ['products'] }),
+        queryClient.invalidateQueries({ queryKey: ['stock-movements'] }),
         queryClient.invalidateQueries({ queryKey: ['orders'] }),
       ]);
     },

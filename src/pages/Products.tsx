@@ -1,63 +1,58 @@
-import { FormEvent, useState } from 'react';
+﻿import { FormEvent, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Package, Plus, Search, X } from 'lucide-react';
+import { History, Package, Pencil, Plus, Search } from 'lucide-react';
 import { api } from '../api';
-
-type Product = { id: string; name: string; sku?: string | null; category?: string | null; stockQuantity: number; minimumStock: number; salePrice: string | number; costPrice: string | number };
-type ProductForm = { name: string; sku: string; category: string; costPrice: string; salePrice: string; stockQuantity: string; minimumStock: string };
-const emptyForm: ProductForm = { name: '', sku: '', category: '', costPrice: '0', salePrice: '', stockQuantity: '0', minimumStock: '0' };
-
+import ProductStock from './ProductStock';
+import ProductPurchases from './ProductPurchases';
+import { InventoryDialog, date, money, useSupplierOptions } from './inventory-shared';
+type Product = { id: string; name: string; sku?: string | null; category?: string | null; compatibility?: string | null; quality?: string | null; location?: string | null; supplierId?: string | null; supplier?: { name: string } | null; purchaseDate?: string | null; stockQuantity: number; minimumStock: number; salePrice: string | number; costPrice: string | number; active: boolean };
+const emptyForm = { name: '', sku: '', category: '', compatibility: '', quality: '', location: '', supplierId: '', purchaseDate: '', costPrice: '0', salePrice: '0', stockQuantity: '0', minimumStock: '0', active: true };
 export default function Products() {
-  const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
+  const client = useQueryClient();
+  const [params] = useSearchParams();
+  const [tab, setTab] = useState(params.has('supplierId') ? 'purchases' : 'products');
+  const [editor, setEditor] = useState<{ id?: string } | null>(null);
+  const [stock, setStock] = useState<Product | null>(null);
   const [form, setForm] = useState(emptyForm);
-  const { data = [], isLoading, error } = useQuery({ queryKey: ['products'], queryFn: () => api<Product[]>('/products') });
-  const createProduct = useMutation({
-    mutationFn: (payload: object) => api<Product>('/products', { method: 'POST', body: JSON.stringify(payload) }),
-    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['products'] }); setOpen(false); setForm(emptyForm); },
-  });
-
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState('active');
+  const [lowOnly, setLowOnly] = useState(false);
+  const query = useQuery({ queryKey: ['products'], queryFn: () => api<Product[]>('/products') });
+  const suppliers = useSupplierOptions();
+  const save = useMutation({ mutationFn: (payload: object) => api(editor?.id ? `/products/${editor.id}` : '/products', { method: editor?.id ? 'PUT' : 'POST', body: JSON.stringify(payload) }), onSuccess: () => {
+    setEditor(null);
+    for (const key of ['products', 'stock-movements', 'product-purchases']) void client.invalidateQueries({ queryKey: [key] });
+  } });
+  function openEditor(product?: Product) {
+    save.reset();
+    setForm(product ? { name: product.name, sku: product.sku || '', category: product.category || '', compatibility: product.compatibility || '', quality: product.quality || '', location: product.location || '', supplierId: product.supplierId || '', purchaseDate: product.purchaseDate?.slice(0, 10) || '', costPrice: String(product.costPrice), salePrice: String(product.salePrice), stockQuantity: String(product.stockQuantity), minimumStock: String(product.minimumStock), active: product.active } : { ...emptyForm });
+    setEditor(product ? { id: product.id } : {});
+  }
   function submit(event: FormEvent) {
-    event.preventDefault();
-    createProduct.mutate({
-      name: form.name.trim(),
-      ...(form.sku.trim() ? { sku: form.sku.trim() } : {}),
-      ...(form.category.trim() ? { category: form.category.trim() } : {}),
-      costPrice: Number(form.costPrice), salePrice: Number(form.salePrice),
-      stockQuantity: Number(form.stockQuantity), minimumStock: Number(form.minimumStock),
-    });
+    event.preventDefault(); if (save.isPending) return;
+    const { stockQuantity, purchaseDate, ...rest } = form;
+    save.mutate({ ...rest, supplierId: form.supplierId || null, costPrice: Number(form.costPrice), salePrice: Number(form.salePrice), minimumStock: Number(form.minimumStock), ...(!editor?.id ? { stockQuantity: Number(stockQuantity), ...(purchaseDate && form.supplierId && Number(stockQuantity) > 0 ? { purchaseDate } : {}) } : {}) });
   }
-
-  function field<K extends keyof ProductForm>(key: K, value: ProductForm[K]) {
-    setForm(current => ({ ...current, [key]: value }));
-  }
-
+  function field(key: keyof typeof emptyForm, value: string | boolean) { setForm(current => ({ ...current, [key]: value })); }
+  const items = (query.data ?? []).filter(p => (status === 'all' || p.active === (status === 'active')) && (!lowOnly || p.stockQuantity <= p.minimumStock) && [p.name, p.sku, p.category, p.compatibility, p.quality, p.location, p.supplier?.name].some(value => value?.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())));
   return <div className="page-stack">
-    <div className="section-toolbar"><div><h2>Produtos e estoque</h2><p>Cadastre produtos e acompanhe o saldo disponível para venda.</p></div><button className="primary-btn" onClick={() => setOpen(true)}><Plus size={17}/> Novo produto</button></div>
-    <div className="panel"><div className="list-toolbar"><div className="search-field"><Search size={17}/><input placeholder="Buscar produto ou SKU"/></div><span>{data.length} produtos</span></div>
-      {isLoading ? <p className="feedback">Carregando produtos...</p> : error ? <p className="feedback error">Não foi possível carregar os produtos. Verifique a API e a autenticação.</p> : data.length === 0 ? <div className="empty-state"><Package size={28}/><strong>Seu estoque está vazio</strong><span>Cadastre produtos para começar a vender.</span></div> :
-        <div className="table-scroll"><table><thead><tr><th>PRODUTO</th><th>SKU</th><th>CATEGORIA</th><th>ESTOQUE</th><th>CUSTO</th><th>PREÇO DE VENDA</th></tr></thead><tbody>{data.map(product => <tr key={product.id}>
-          <td className="order-number">{product.name}</td><td>{product.sku || '—'}</td><td>{product.category || '—'}</td>
-          <td><span className={product.stockQuantity <= product.minimumStock ? 'stock-low' : 'stock-ok'}>{product.stockQuantity} un.</span></td>
-          <td>{Number(product.costPrice).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
-          <td>{Number(product.salePrice).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
-        </tr>)}</tbody></table></div>}
-    </div>
-    {open && <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setOpen(false); }}>
-      <form className="form-modal" onSubmit={submit}>
-        <div className="form-modal-heading"><div><h2>Novo produto</h2><p>O estoque inicial ficará disponível para vendas.</p></div><button type="button" className="icon-btn" aria-label="Fechar" onClick={() => setOpen(false)}><X size={18}/></button></div>
-        <div className="modal-fields">
-          <label className="modal-wide">Nome do produto<input required minLength={2} maxLength={120} autoFocus value={form.name} onChange={e => field('name', e.target.value)} /></label>
-          <label>SKU <span className="field-optional">(opcional)</span><input maxLength={80} value={form.sku} onChange={e => field('sku', e.target.value)} /></label>
-          <label>Categoria <span className="field-optional">(opcional)</span><input maxLength={80} placeholder="Ex.: Acessórios" value={form.category} onChange={e => field('category', e.target.value)} /></label>
-          <label>Preço de custo<input required type="number" min="0" step="0.01" value={form.costPrice} onChange={e => field('costPrice', e.target.value)} /></label>
-          <label>Preço de venda<input required type="number" min="0.01" step="0.01" value={form.salePrice} onChange={e => field('salePrice', e.target.value)} /></label>
-          <label>Estoque inicial<input required type="number" min="0" step="1" value={form.stockQuantity} onChange={e => field('stockQuantity', e.target.value)} /></label>
-          <label>Estoque mínimo<input required type="number" min="0" step="1" value={form.minimumStock} onChange={e => field('minimumStock', e.target.value)} /></label>
-        </div>
-        {createProduct.error && <p className="feedback error">{createProduct.error.message}</p>}
-        <div className="form-modal-actions"><button type="button" className="secondary-btn" onClick={() => setOpen(false)}>Cancelar</button><button className="primary-btn" disabled={createProduct.isPending}>{createProduct.isPending ? 'Salvando...' : 'Salvar produto'}</button></div>
-      </form>
+    <div className="section-toolbar"><div><h2>Produtos e estoque</h2><p>Controle suas peças, movimentações e compras por fornecedor.</p></div><button className="primary-btn" onClick={() => openEditor()}><Plus size={17}/> Novo produto</button></div>
+    <div className="inventory-tabs"><button className={tab === 'products' ? 'primary-btn' : 'secondary-btn'} onClick={() => setTab('products')}>Peças e movimentações</button><button className={tab === 'purchases' ? 'primary-btn' : 'secondary-btn'} onClick={() => setTab('purchases')}>Compras por fornecedor</button></div>
+    {tab === 'purchases' ? <ProductPurchases initialSupplier={params.get('supplierId') || ''}/> : <div className="panel">
+      <div className="list-toolbar supplier-toolbar"><div className="search-field"><Search size={17}/><input aria-label="Buscar peças" placeholder="Nome, SKU, compatibilidade, fornecedor ou localização" value={search} onChange={e => setSearch(e.target.value)}/></div><div className="supplier-filters"><select aria-label="Status" value={status} onChange={e => setStatus(e.target.value)}><option value="active">Ativos</option><option value="inactive">Inativos</option><option value="all">Todos</option></select><label className="inventory-checkbox"><input type="checkbox" checked={lowOnly} onChange={e => setLowOnly(e.target.checked)}/> Estoque baixo</label><span>{items.length} produtos</span></div></div>
+      {query.isLoading ? <p className="feedback">Carregando produtos...</p> : query.error ? <p role="alert" className="feedback error">{query.error.message}</p> : !items.length ? <div className="empty-state"><Package size={28}/><strong>Nenhuma peça encontrada</strong><span>Cadastre uma peça ou ajuste os filtros.</span></div> : <div className="table-scroll"><table><thead><tr><th>PEÇA</th><th>COMPATIBILIDADE / QUALIDADE</th><th>FORNECEDOR / ÚLTIMA COMPRA</th><th>ESTOQUE / MÍNIMO</th><th>LOCALIZAÇÃO</th><th>CUSTO / VENDA</th><th>AÇÕES</th></tr></thead><tbody>{items.map(p => <tr key={p.id}>
+        <td><strong className="order-number">{p.name}</strong><small className="table-subtext">{[p.sku, p.category].filter(Boolean).join(' · ') || 'Sem SKU / categoria'}{!p.active ? ' · Inativo' : ''}</small></td><td>{p.compatibility || '—'}<small className="table-subtext">{p.quality || 'Qualidade não informada'}</small></td><td>{p.supplier?.name || '—'}<small className="table-subtext">{p.purchaseDate ? date(p.purchaseDate) : 'Sem compra registrada'}</small></td><td><span className={p.stockQuantity <= p.minimumStock ? 'stock-low' : 'stock-ok'}>{p.stockQuantity} un.</span><small className="table-subtext">Mínimo: {p.minimumStock}</small></td><td>{p.location || '—'}</td><td>{money(p.costPrice)}<small className="table-subtext">Venda: {money(p.salePrice)}</small></td><td><div className="supplier-actions"><button className="icon-btn" aria-label={`Editar ${p.name}`} title="Editar peça" onClick={() => openEditor(p)}><Pencil size={16}/></button><button className="secondary-btn" onClick={() => setStock(p)}><History size={15}/> Estoque</button></div></td>
+      </tr>)}</tbody></table></div>}
     </div>}
+    {stock && <ProductStock product={(query.data ?? []).find(p => p.id === stock.id) ?? stock} onClose={() => setStock(null)}/>}
+    {editor && <InventoryDialog title={editor.id ? 'Editar peça' : 'Nova peça'} busy={save.isPending} onClose={() => setEditor(null)}><form onSubmit={submit}><fieldset className="supplier-fieldset" disabled={save.isPending}><div className="modal-fields">
+      <label className="modal-wide">Nome da peça<input autoFocus required minLength={2} maxLength={120} value={form.name} onChange={e => field('name', e.target.value)}/></label>
+      {([['sku', 'SKU', 80], ['category', 'Categoria', 80], ['compatibility', 'Compatibilidade', 200], ['quality', 'Qualidade (Original, OLED, Incell...)', 80], ['location', 'Localização (ex.: Gaveta A3)', 120]] as const).map(([key, label, max]) => <label key={key}>{label}<input maxLength={max} value={form[key]} onChange={e => field(key, e.target.value)}/></label>)}
+      <label>Fornecedor<select value={form.supplierId} onChange={e => field('supplierId', e.target.value)}><option value="">Não informado</option>{suppliers.data?.map(s => <option key={s.id} value={s.id}>{s.name}{!s.active ? ' (inativo)' : ''}</option>)}</select></label>
+      <label>Custo unitário (R$)<input required type="number" min="0" step="0.01" value={form.costPrice} onChange={e => field('costPrice', e.target.value)}/></label><label>Preço de venda (R$)<input required type="number" min="0" step="0.01" value={form.salePrice} onChange={e => field('salePrice', e.target.value)}/></label>
+      {!editor.id && <><label>Estoque inicial<input required type="number" min="0" max="2147483647" step="1" value={form.stockQuantity} onChange={e => field('stockQuantity', e.target.value)}/></label><label>Data da compra inicial<input type="date" required={!!form.supplierId && Number(form.stockQuantity) > 0} disabled={!form.supplierId || Number(form.stockQuantity) === 0} value={form.purchaseDate} onChange={e => field('purchaseDate', e.target.value)}/></label><p className="modal-wide inventory-hint">Com fornecedor e data, a quantidade inicial registra uma compra. Sem fornecedor, registra apenas o saldo inicial.</p></>}
+      <label>Estoque mínimo<input required type="number" min="0" max="2147483647" step="1" value={form.minimumStock} onChange={e => field('minimumStock', e.target.value)}/></label><label>Status<select value={String(form.active)} onChange={e => field('active', e.target.value === 'true')}><option value="true">Ativo</option><option value="false">Inativo</option></select></label>
+    </div></fieldset>{suppliers.error && <p className="feedback error">Não foi possível carregar os fornecedores.</p>}{save.error && <p className="feedback error" role="alert">{save.error.message}</p>}<div className="form-modal-actions"><button className="secondary-btn" type="button" disabled={save.isPending} onClick={() => setEditor(null)}>Cancelar</button><button className="primary-btn" disabled={save.isPending}>{save.isPending ? 'Salvando...' : 'Salvar peça'}</button></div></form></InventoryDialog>}
   </div>;
 }
