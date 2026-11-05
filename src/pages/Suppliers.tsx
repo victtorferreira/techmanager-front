@@ -2,7 +2,7 @@ import { FormEvent, ReactNode, useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Pencil, Plus, Search, Trash2, Truck, X } from 'lucide-react';
 import { api } from '../api';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 
 type SupplierForm = {
   name: string; tradeName: string; document: string; contactName: string; phone: string;
@@ -39,7 +39,9 @@ function SupplierDialog({ children, onClose, titleId }: { children: ReactNode; o
 
 export default function Suppliers() {
   const queryClient = useQueryClient();
-  const [search, setSearch] = useState('');
+  const [params] = useSearchParams();
+  const routeSearch = params.get('search') || '';
+  const [search, setSearch] = useState(routeSearch);
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [status, setStatus] = useState('all');
   const [page, setPage] = useState(1);
@@ -47,6 +49,7 @@ export default function Suppliers() {
   const [form, setForm] = useState<SupplierForm>(emptyForm);
   const [deleting, setDeleting] = useState<Supplier | null>(null);
   const [feedback, setFeedback] = useState('');
+  useEffect(() => { setSearch(routeSearch); setStatus('all'); setPage(1); }, [routeSearch]);
   useEffect(() => {
     const timer = window.setTimeout(() => { setDebouncedSearch(search.trim()); setPage(1); }, 300);
     return () => window.clearTimeout(timer);

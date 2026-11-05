@@ -1,6 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { ClipboardList, Plus, Search } from 'lucide-react';
 import { api } from '../api';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import NewOrderDialog from './NewOrderDialog';
 
 type Order = {
   id: string; number: number; reportedIssue: string; status: string; createdAt: string;
@@ -17,12 +20,20 @@ const labels: Record<string, string> = {
 };
 
 export default function Orders() {
-  const { data = [], isLoading, error } = useQuery({ queryKey: ['orders'], queryFn: () => api<Order[]>('/service-orders') });
+  const [params, setParams] = useSearchParams();
+  const orderId = params.get('orderId');
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState('');
+  useEffect(() => { setSearch(''); setStatus(''); }, [orderId]);
+  const { data = [], isLoading, error } = useQuery({ queryKey: orderId ? ['orders', orderId] : ['orders'], queryFn: () => api<Order[]>(`/service-orders${orderId ? `?orderId=${encodeURIComponent(orderId)}` : ''}`) });
+  const visibleOrders = data.filter(order => (!status || order.status === status) && [String(order.number), order.customer.name, order.customer.phone, order.device.brand, order.device.model, order.reportedIssue].some(value => value?.toLocaleLowerCase('pt-BR').includes(search.trim().toLocaleLowerCase('pt-BR').replace(/^#/, ''))));
   return <div className="page-stack">
-    <div className="section-toolbar"><div><h2>Ordens de serviço</h2><p>Solicitações do site e atendimentos registrados pela assistência.</p></div><button className="primary-btn"><Plus size={17}/> Nova ordem</button></div>
-    <div className="filter-row"><div className="search-field"><Search size={17}/><input placeholder="Buscar OS, cliente ou aparelho"/></div><select><option>Todos os status</option>{Object.entries(labels).map(([key, value]) => <option key={key} value={key}>{value}</option>)}</select></div>
+    <div className="section-toolbar"><div><h2>Ordens de serviço</h2><p>Solicitações do site e atendimentos registrados pela assistência.</p></div><button className="primary-btn" onClick={() => setOpen(true)}><Plus size={17}/> Nova ordem</button></div>
+    {orderId && <button className="secondary-btn" onClick={() => setParams({})}>Ver todas as ordens</button>}
+    <div className="filter-row"><div className="search-field"><Search size={17}/><input aria-label="Buscar ordens" placeholder="Buscar OS, cliente ou aparelho" value={search} onChange={event => setSearch(event.target.value)}/></div><select aria-label="Filtrar ordens por status" value={status} onChange={event => setStatus(event.target.value)}><option value="">Todos os status</option>{Object.entries(labels).map(([key, value]) => <option key={key} value={key}>{value}</option>)}</select></div>
     <div className="panel">{isLoading ? <p className="feedback">Carregando ordens...</p> : error ? <p className="feedback error">Não foi possível carregar as ordens. Verifique a autenticação e a API.</p> : data.length === 0 ? <div className="empty-state"><ClipboardList size={28}/><strong>Nenhuma ordem cadastrada</strong><span>Quando uma solicitação for enviada ou uma OS criada, ela aparecerá aqui.</span></div> :
-      <div className="table-scroll"><table><thead><tr><th>Nº OS</th><th>CLIENTE / CONTATO</th><th>APARELHO</th><th>DEFEITO RELATADO</th><th>TRIAGEM</th><th>ORIGEM</th><th>STATUS</th><th>ENTRADA</th></tr></thead><tbody>{data.map(order => <tr key={order.id}>
+      visibleOrders.length === 0 ? <p className="feedback">Nenhuma ordem encontrada com estes filtros.</p> : <div className="table-scroll"><table><thead><tr><th>Nº OS</th><th>CLIENTE / CONTATO</th><th>APARELHO</th><th>DEFEITO RELATADO</th><th>TRIAGEM</th><th>ORIGEM</th><th>STATUS</th><th>ENTRADA</th></tr></thead><tbody>{visibleOrders.map(order => <tr key={order.id}>
         <td className="order-number">#{String(order.number).padStart(5, '0')}</td>
         <td>{order.customer.name}<small className="table-subtext">{order.customer.phone || 'Sem telefone'}</small></td>
         <td>{order.device.brand} {order.device.model}{order.device.color && <small className="table-subtext">{order.device.color}</small>}</td>
@@ -34,5 +45,6 @@ export default function Orders() {
         <td><span className={`status-pill ${order.status === 'READY' ? 'green' : order.status === 'RECEIVED' ? 'orange' : 'blue'}`}>{labels[order.status] || order.status}</span></td>
         <td>{new Date(order.createdAt).toLocaleDateString('pt-BR')}</td>
       </tr>)}</tbody></table></div>}</div>
+    {open && <NewOrderDialog onClose={() => { setOpen(false); if (orderId) setParams({}); }}/>}
   </div>;
 }

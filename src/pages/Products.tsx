@@ -1,4 +1,4 @@
-﻿import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { History, Package, Pencil, Plus, Search } from 'lucide-react';
@@ -10,7 +10,7 @@ type Product = { id: string; name: string; sku?: string | null; category?: strin
 const emptyForm = { name: '', sku: '', category: '', compatibility: '', quality: '', location: '', supplierId: '', purchaseDate: '', costPrice: '0', salePrice: '0', stockQuantity: '0', minimumStock: '0', active: true };
 export default function Products() {
   const client = useQueryClient();
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const [tab, setTab] = useState(params.has('supplierId') ? 'purchases' : 'products');
   const [editor, setEditor] = useState<{ id?: string } | null>(null);
   const [stock, setStock] = useState<Product | null>(null);
@@ -18,6 +18,8 @@ export default function Products() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('active');
   const [lowOnly, setLowOnly] = useState(false);
+  const productId = params.get('productId');
+  useEffect(() => { if (productId) { setTab('products'); setSearch(''); setStatus('all'); setLowOnly(false); } }, [productId]);
   const query = useQuery({ queryKey: ['products'], queryFn: () => api<Product[]>('/products') });
   const suppliers = useSupplierOptions();
   const save = useMutation({ mutationFn: (payload: object) => api(editor?.id ? `/products/${editor.id}` : '/products', { method: editor?.id ? 'PUT' : 'POST', body: JSON.stringify(payload) }), onSuccess: () => {
@@ -35,9 +37,10 @@ export default function Products() {
     save.mutate({ ...rest, supplierId: form.supplierId || null, costPrice: Number(form.costPrice), salePrice: Number(form.salePrice), minimumStock: Number(form.minimumStock), ...(!editor?.id ? { stockQuantity: Number(stockQuantity), ...(purchaseDate && form.supplierId && Number(stockQuantity) > 0 ? { purchaseDate } : {}) } : {}) });
   }
   function field(key: keyof typeof emptyForm, value: string | boolean) { setForm(current => ({ ...current, [key]: value })); }
-  const items = (query.data ?? []).filter(p => (status === 'all' || p.active === (status === 'active')) && (!lowOnly || p.stockQuantity <= p.minimumStock) && [p.name, p.sku, p.category, p.compatibility, p.quality, p.location, p.supplier?.name].some(value => value?.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())));
+  const items = (query.data ?? []).filter(p => (!productId || p.id === productId) && (status === 'all' || p.active === (status === 'active')) && (!lowOnly || p.stockQuantity <= p.minimumStock) && [p.name, p.sku, p.category, p.compatibility, p.quality, p.location, p.supplier?.name].some(value => value?.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())));
   return <div className="page-stack">
     <div className="section-toolbar"><div><h2>Produtos e estoque</h2><p>Controle suas peças, movimentações e compras por fornecedor.</p></div><button className="primary-btn" onClick={() => openEditor()}><Plus size={17}/> Novo produto</button></div>
+    {productId && <button className="secondary-btn" onClick={() => setParams({})}>Ver todos os produtos</button>}
     <div className="inventory-tabs"><button className={tab === 'products' ? 'primary-btn' : 'secondary-btn'} onClick={() => setTab('products')}>Peças e movimentações</button><button className={tab === 'purchases' ? 'primary-btn' : 'secondary-btn'} onClick={() => setTab('purchases')}>Compras por fornecedor</button></div>
     {tab === 'purchases' ? <ProductPurchases initialSupplier={params.get('supplierId') || ''}/> : <div className="panel">
       <div className="list-toolbar supplier-toolbar"><div className="search-field"><Search size={17}/><input aria-label="Buscar peças" placeholder="Nome, SKU, compatibilidade, fornecedor ou localização" value={search} onChange={e => setSearch(e.target.value)}/></div><div className="supplier-filters"><select aria-label="Status" value={status} onChange={e => setStatus(e.target.value)}><option value="active">Ativos</option><option value="inactive">Inativos</option><option value="all">Todos</option></select><label className="inventory-checkbox"><input type="checkbox" checked={lowOnly} onChange={e => setLowOnly(e.target.checked)}/> Estoque baixo</label><span>{items.length} produtos</span></div></div>

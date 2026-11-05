@@ -43,7 +43,8 @@ export default function Customers() {
   const salesQuery = useQuery({ queryKey: ['sales'], queryFn: () => api<Sale[]>('/sales') });
   const ordersQuery = useQuery({ queryKey: ['orders'], queryFn: () => api<Order[]>('/service-orders') });
   const customers = customersQuery.data ?? [];
-  const selected = customers.find(customer => customer.id === customerId);
+  const customerQuery = useQuery({ queryKey: ['customer', customerId], queryFn: () => api<Customer>(`/customers/${customerId}`), enabled: !!customerId });
+  const selected = customerQuery.data ?? customers.find(customer => customer.id === customerId);
   const sales = salesQuery.data ?? [];
   const orders = ordersQuery.data ?? [];
 
@@ -89,7 +90,7 @@ export default function Customers() {
       discountPercent: Number(payload.discountPercent || 0), notes: payload.notes.trim() || null,
     }) }),
     onSuccess: async () => {
-      await Promise.all([queryClient.invalidateQueries({ queryKey: ['customers'] }), queryClient.invalidateQueries({ queryKey: ['appointments'] }), queryClient.invalidateQueries({ queryKey: ['orders'] })]);
+      await Promise.all([queryClient.invalidateQueries({ queryKey: ['customers'] }), queryClient.invalidateQueries({ queryKey: ['customer'] }), queryClient.invalidateQueries({ queryKey: ['appointments'] }), queryClient.invalidateQueries({ queryKey: ['orders'] }), queryClient.invalidateQueries({ queryKey: ['global-search'] })]);
       setModal(null); setEditing(null); setForm(emptyForm);
     },
   });
@@ -213,7 +214,7 @@ export default function Customers() {
       <CustomerProfilePage key={selected.id} customer={selected} sales={salesByCustomer.get(selected.id) ?? []} orders={ordersByCustomer.get(selected.id) ?? []} onEdit={() => openEditCustomer(selected)} onBack={backToCustomers} onNewSale={() => navigate(`/vendas?customerId=${encodeURIComponent(selected.id)}`)} />
     </> : <section className="panel customer-profile-state">
       <button type="button" className="secondary-btn" onClick={backToCustomers}><ArrowLeft size={16}/> Voltar para clientes</button>
-      {customersQuery.isLoading ? <p className="feedback" role="status">Carregando ficha do cliente...</p> : customersQuery.error ? <><p className="feedback error" role="alert">Não foi possível carregar a ficha do cliente.</p><button type="button" className="secondary-btn" onClick={() => void customersQuery.refetch()}>Tentar novamente</button></> : <div className="empty-state"><UserRound size={28}/><strong>Cliente não encontrado</strong><span>Este cadastro não está disponível na lista da assistência.</span></div>}
+      {customerQuery.isLoading ? <p className="feedback" role="status">Carregando ficha do cliente...</p> : customerQuery.error ? <><p className="feedback error" role="alert">Não foi possível carregar a ficha do cliente.</p><button type="button" className="secondary-btn" onClick={() => void customerQuery.refetch()}>Tentar novamente</button></> : <div className="empty-state"><UserRound size={28}/><strong>Cliente não encontrado</strong><span>Este cadastro não está disponível nesta assistência.</span></div>}
     </section>}
 
     {modal === "form" && <CustomerFormModal form={form} editing={Boolean(editing)} isPending={saveCustomer.isPending} error={saveCustomer.error?.message ?? ""} zipFeedback={zipFeedback} photoFeedback={photoFeedback} onChange={updateForm} onZipLookup={lookupZip} onPhoto={selectPhoto} onClose={() => setModal(null)} onSubmit={submit} />}

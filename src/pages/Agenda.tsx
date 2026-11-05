@@ -58,8 +58,10 @@ export default function Agenda() {
 
   const createAppointment = useMutation({
     mutationFn: (payload: object) => api<Appointment>('/appointments', { method: 'POST', body: JSON.stringify(payload) }),
-    onSuccess: async () => {
+    onSuccess: async appointment => {
       setModalOpen(false); setErrorMessage('');
+      const day = new Date(appointment.startsAt);
+      setSelectedDate(day); setMonth(new Date(day.getFullYear(), day.getMonth(), 1));
       await queryClient.invalidateQueries({ queryKey: ['appointments'] });
     },
     onError: error => setErrorMessage(error.message),
@@ -79,12 +81,24 @@ export default function Agenda() {
 
   function submit(event: FormEvent) {
     event.preventDefault(); setErrorMessage('');
+    if (createAppointment.isPending) return;
+    // Read native date controls at submission. Partial edits and browser fills must
+    // never be replaced by a previous React value or the default duration.
+    const values = new FormData(event.currentTarget as HTMLFormElement);
+    const startsAt = new Date(String(values.get('startsAt') || ''));
+    const endsAt = new Date(String(values.get('endsAt') || ''));
+    if (!Number.isFinite(startsAt.getTime()) || !Number.isFinite(endsAt.getTime())) {
+      setErrorMessage('Preencha início e término com datas e horários válidos.'); return;
+    }
+    if (endsAt <= startsAt) {
+      setErrorMessage('O horário de término deve ser posterior ao início.'); return;
+    }
     createAppointment.mutate({
       customerId: form.customerId,
       title: form.title.trim(),
       ...(form.deviceDescription.trim() ? { deviceDescription: form.deviceDescription.trim() } : {}),
       ...(form.details.trim() ? { details: form.details.trim() } : {}),
-      startsAt: new Date(form.startsAt).toISOString(), endsAt: new Date(form.endsAt).toISOString(),
+      startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString(),
     });
   }
 
@@ -127,7 +141,7 @@ export default function Agenda() {
     </div>
 
     {modalOpen && <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setModalOpen(false); }}>
-      <form className="form-modal appointment-modal" onSubmit={submit}>
+      <form className="form-modal appointment-modal" onSubmit={submit} aria-label="Novo agendamento">
         <div className="form-modal-heading"><div><h2>Novo agendamento</h2><p>{selectedDate.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}</p></div><button type="button" className="icon-btn" aria-label="Fechar" onClick={() => setModalOpen(false)}><X size={18}/></button></div>
         <div className="modal-fields">
           <label className="modal-wide">Cliente<select required value={form.customerId} onChange={event => setForm(current => ({ ...current, customerId: event.target.value }))}><option value="">Selecione um cliente</option>{customers.map(customer => <option key={customer.id} value={customer.id}>{customer.name}{customer.phone ? ` · ${customer.phone}` : ''}</option>)}</select></label>
@@ -135,11 +149,11 @@ export default function Agenda() {
           {!customersQuery.isLoading && customers.length === 0 && <p className="feedback modal-wide">Cadastre primeiro um cliente. <Link to="/clientes">Ir para clientes</Link></p>}
           <label className="modal-wide">Motivo do atendimento<input required minLength={2} maxLength={100} value={form.title} onChange={event => setForm(current => ({ ...current, title: event.target.value }))} /></label>
           <label className="modal-wide">Aparelho <span className="field-optional">(opcional)</span><input maxLength={120} placeholder="Ex.: iPhone 13, Samsung A54" value={form.deviceDescription} onChange={event => setForm(current => ({ ...current, deviceDescription: event.target.value }))} /></label>
-          <label>Início<input required type="datetime-local" value={form.startsAt} onChange={event => setForm(current => ({ ...current, startsAt: event.target.value }))} /></label>
-          <label>Término<input required type="datetime-local" value={form.endsAt} onChange={event => setForm(current => ({ ...current, endsAt: event.target.value }))} /></label>
+          <label>Início<input required name="startsAt" type="datetime-local" defaultValue={form.startsAt} /></label>
+          <label>Término<input required name="endsAt" type="datetime-local" defaultValue={form.endsAt} /></label>
           <label className="modal-wide">Observações <span className="field-optional">(opcional)</span><textarea rows={3} maxLength={1000} value={form.details} onChange={event => setForm(current => ({ ...current, details: event.target.value }))} /></label>
         </div>
-        {errorMessage && <p className="feedback error">{errorMessage}</p>}
+        {errorMessage && <p className="feedback error" role="alert">{errorMessage}</p>}
         <div className="form-modal-actions"><button type="button" className="secondary-btn" onClick={() => setModalOpen(false)}>Cancelar</button><button className="primary-btn" disabled={createAppointment.isPending || customers.length === 0}>{createAppointment.isPending ? 'Salvando...' : 'Salvar agendamento'}</button></div>
       </form>
     </div>}
