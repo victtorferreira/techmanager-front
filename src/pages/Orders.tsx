@@ -4,6 +4,7 @@ import { api } from '../api';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import NewOrderDialog from './NewOrderDialog';
+import OrderFinanceDialog from './OrderFinanceDialog';
 
 type Order = {
   id: string; number: number; reportedIssue: string; status: string; createdAt: string;
@@ -23,6 +24,7 @@ export default function Orders() {
   const [params, setParams] = useSearchParams();
   const orderId = params.get('orderId');
   const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
   useEffect(() => { setSearch(''); setStatus(''); }, [orderId]);
@@ -43,8 +45,9 @@ export default function Orders() {
         <td className="triage-cell">{order.publicRequest ? <>{order.devicePowersOn ? 'Liga' : 'Não liga'} · {order.liquidDamage ? 'Teve contato com líquido' : 'Sem contato com líquido'} · {order.previousRepair ? 'Já reparado' : 'Sem reparo anterior'}{order.accessories && <small className="table-subtext">Acompanha: {order.accessories}</small>}{order.preferredContact && <small className="table-subtext">Contato: {order.preferredContact === 'WHATSAPP' ? 'WhatsApp' : order.preferredContact === 'PHONE' ? 'Ligação' : 'E-mail'}</small>}</> : '—'}</td>
         <td>{order.publicRequest ? <span className="origin-pill">Site</span> : 'Balcão'}</td>
         <td><span className={`status-pill ${order.status === 'READY' ? 'green' : order.status === 'RECEIVED' ? 'orange' : 'blue'}`}>{labels[order.status] || order.status}</span></td>
-        <td>{new Date(order.createdAt).toLocaleDateString('pt-BR')}</td>
+        <td>{new Date(order.createdAt).toLocaleDateString('pt-BR')}<div><button className="secondary-btn" onClick={() => setSelected(order.id)}>Atendimento / financeiro</button></div></td>
       </tr>)}</tbody></table></div>}</div>
     {open && <NewOrderDialog onClose={() => { setOpen(false); if (orderId) setParams({}); }}/>}
+    {selected && <OrderFinanceDialog id={selected} labels={labels} onClose={() => setSelected(null)}/>}
   </div>;
 }

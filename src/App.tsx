@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard';
 import Customers from './pages/Customers';
 import Orders from './pages/Orders';
 import Products from './pages/Products';
+import Purchases from './pages/Purchases';
 import Suppliers from './pages/Suppliers';
 import Sales from './pages/Sales';
 import Agenda from './pages/Agenda';
@@ -113,7 +114,7 @@ export default function App() {
     </aside>
     <main className="main-area">
       <header className="topbar"><div><h1>{title}</h1></div><div className="top-actions"><GlobalSearch/><button className="icon-btn theme-toggle" aria-label={theme === 'dark' ? 'Ativar modo claro' : 'Ativar modo escuro'} title={theme === 'dark' ? 'Modo claro' : 'Modo escuro'} onClick={() => setTheme(current => current === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={18}/> : <Moon size={18}/>}</button><NotificationsButton tenantSlug={getTenantSlug()}/><div className="top-divider"/><UserMenu user={user} onLogout={handleLogout}/></div></header>
-      <div className="page-content"><Routes><Route path="/" element={<Dashboard tenantSlug={getTenantSlug()}/>}/><Route path="/ordens" element={<Orders/>}/><Route path="/clientes/:customerId?" element={<Customers/>}/><Route path="/produtos" element={<Products/>}/><Route path="/fornecedores" element={<Suppliers/>}/><Route path="/vendas" element={<Sales/>}/><Route path="/agenda" element={<Agenda/>}/><Route path="/financeiro" element={<Finance/>}/><Route path="/relatorios" element={<Reports/>}/><Route path="/configuracoes" element={<SettingsPage canEdit={user.role === "OWNER" || user.role === "ADMIN"}/>}/><Route path="*" element={<div className="placeholder-panel"><div className="empty-icon"><Wrench/></div><h2>Módulo em construção</h2><p>Esta área será implementada nas próximas etapas do TechManager.</p></div>}/></Routes></div>
+      <div className="page-content"><Routes><Route path="/" element={<Dashboard tenantSlug={getTenantSlug()}/>}/><Route path="/ordens" element={<Orders/>}/><Route path="/clientes/:customerId?" element={<Customers/>}/><Route path="/produtos" element={<Products/>}/><Route path="/compras" element={<Purchases/>}/><Route path="/fornecedores" element={<Suppliers/>}/><Route path="/vendas" element={<Sales/>}/><Route path="/agenda" element={<Agenda/>}/><Route path="/financeiro" element={<Finance/>}/><Route path="/relatorios" element={<Reports/>}/><Route path="/configuracoes" element={<SettingsPage canEdit={user.role === "OWNER" || user.role === "ADMIN"}/>}/><Route path="*" element={<div className="placeholder-panel"><div className="empty-icon"><Wrench/></div><h2>Módulo em construção</h2><p>Esta área será implementada nas próximas etapas do TechManager.</p></div>}/></Routes></div>
     </main>
   </div>;
 }

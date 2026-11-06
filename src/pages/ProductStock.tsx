@@ -1,9 +1,12 @@
 ﻿import { FormEvent, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
+import { emptyPayment, PurchasePaymentFields, refreshBusiness, useRequestId } from './payment-shared';
 import { InventoryDialog, MovementList, MovementTable, Pagination, movementLabels, today, useSupplierOptions } from './inventory-shared';
-export default function ProductStock({ product, onClose }: { product: { id: string; name: string; costPrice: string | number; active: boolean }; onClose: () => void }) {
+export default function ProductStock({ product, onClose, purchaseOnly = false }: { product: { id: string; name: string; costPrice: string | number; active: boolean }; onClose: () => void; purchaseOnly?: boolean }) {
   const client = useQueryClient();
+  const { withRequestId, resetRequestId } = useRequestId();
+  const [payment, setPayment] = useState(emptyPayment);
   const [page, setPage] = useState(1);
   const [type, setType] = useState('PURCHASE');
   const [quantity, setQuantity] = useState('1');
@@ -19,25 +22,28 @@ export default function ProductStock({ product, onClose }: { product: { id: stri
   const history = useQuery({ queryKey: ['stock-movements', product.id, page], queryFn: () => api<MovementList>(`/products/${product.id}/movements?page=${page}`) });
   const move = useMutation({ mutationFn: (payload: object) => api(`/products/${product.id}/movements`, { method: 'POST', body: JSON.stringify(payload) }), onSuccess: () => {
     setPage(1); setFeedback('Movimentação registrada.'); setNotes('');
-    for (const key of ['products', 'stock-movements', 'product-purchases', 'dashboard', 'reports']) void client.invalidateQueries({ queryKey: [key] });
+    resetRequestId();
+    void refreshBusiness(client);
   } });
   function submit(event: FormEvent) {
     event.preventDefault();
     if (move.isPending) return;
     setFeedback('');
-    move.mutate({ type, quantity: Number(quantity) * (['ADJUSTMENT', 'WARRANTY'].includes(type) && direction === 'OUT' ? -1 : 1),
-      occurredAt, notes, ...(type === 'PURCHASE' ? { supplierId, unitCost: Number(unitCost) } : {}),
+    const payload = withRequestId({ type, quantity: Number(quantity) * (['ADJUSTMENT', 'WARRANTY'].includes(type) && direction === 'OUT' ? -1 : 1),
+      occurredAt, notes, ...(type === 'PURCHASE' ? { supplierId, unitCost: Number(unitCost), payment } : {}),
       ...(type !== 'PURCHASE' && serviceOrderId ? { serviceOrderId } : {}),
     });
+    move.mutate(payload);
   }
   return <InventoryDialog title={`Estoque · ${product.name}`} onClose={onClose} busy={move.isPending}>
     {product.active ? <form onSubmit={submit}>
       <fieldset className="supplier-fieldset" disabled={move.isPending}><div className="modal-fields">
-        <label>Tipo de movimentação<select value={type} onChange={e => { setType(e.target.value); move.reset(); setFeedback(''); }}>{Object.entries(movementLabels).filter(([key]) => !['INITIAL', 'SALE'].includes(key)).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
+        <label>Tipo de movimentação<select value={type} disabled={purchaseOnly} onChange={e => { setType(e.target.value); move.reset(); setFeedback(''); }}>{Object.entries(movementLabels).filter(([key]) => !['INITIAL', 'SALE'].includes(key)).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
         <label>Quantidade<input required type="number" min="1" max="2147483647" step="1" value={quantity} onChange={e => setQuantity(e.target.value)}/></label>
         {['ADJUSTMENT', 'WARRANTY'].includes(type) && <label>Direção<select value={direction} onChange={e => setDirection(e.target.value)}><option value="IN">Entrada no estoque</option><option value="OUT">Saída do estoque</option></select></label>}
         <label>{type === 'PURCHASE' ? 'Data da compra' : 'Data da movimentação'}<input required type="date" value={occurredAt} onChange={e => setOccurredAt(e.target.value)}/></label>
         {type === 'PURCHASE' ? <><label>Fornecedor<select required value={supplierId} onChange={e => setSupplierId(e.target.value)}><option value="">Selecione</option>{suppliers.data?.map(s => <option key={s.id} value={s.id}>{s.name}{!s.active ? ' (inativo)' : ''}</option>)}</select></label><label>Custo unitário (R$)<input required type="number" min="0" step="0.01" value={unitCost} onChange={e => setUnitCost(e.target.value)}/></label></> : <label className="modal-wide">Ordem de serviço {type === 'SERVICE_ORDER' ? '(obrigatória)' : '(opcional)'}<select required={type === 'SERVICE_ORDER'} value={serviceOrderId} onChange={e => setServiceOrderId(e.target.value)}><option value="">Selecione a OS</option>{orders.data?.map(o => <option key={o.id} value={o.id}>OS #{o.number} · {o.customer.name}</option>)}</select></label>}
+        {type === 'PURCHASE' && <PurchasePaymentFields value={payment} onChange={setPayment}/>}
         <label className="modal-wide">Motivo / observações<textarea required={['ADJUSTMENT', 'WARRANTY', 'LOSS'].includes(type)} maxLength={1000} rows={2} value={notes} onChange={e => setNotes(e.target.value)}/></label>
       </div></fieldset>
       {suppliers.error && type === 'PURCHASE' && <p className="feedback error">Não foi possível carregar os fornecedores.</p>}{orders.error && type !== 'PURCHASE' && <p className="feedback error">Não foi possível carregar as ordens de serviço.</p>}

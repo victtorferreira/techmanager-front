@@ -4,8 +4,9 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 
 type Report = {
-  totals: { sales: number; saleCount: number; averageTicket: number; grossProfit: number; income: number; expenses: number; balance: number; orders: number; newCustomers: number; appointments: number; completedAppointments: number; lowStock: number };
-  series: Array<{ date: string; sales: number; expenses: number; appointments: number }>;
+  totals: { sales: number; saleCount: number; averageTicket: number; grossProfit: number; income: number; expenses: number; balance: number; orders: number; newCustomers: number; appointments: number; completedAppointments: number; lowStock: number; serviceIncome: number; serviceRefunds: number; serviceQuoted: number; servicePartsCost: number; serviceResult: number; purchases: number; pendingIncome: number; pendingExpenses: number };
+  series: Array<{ date: string; sales: number; income: number; expenses: number; appointments: number }>;
+  suppliers: Array<{ id: string; name: string; purchases: number; purchased: number; paid: number }>;
   ordersByStatus: Array<{ status: string; count: number }>;
   appointmentsByStatus: Array<{ status: string; count: number }>;
   topProducts: Array<{ id: string; name: string; quantity: number; total: number }>;
@@ -31,7 +32,7 @@ export default function Reports() {
     enabled: Boolean(range),
   });
   const report = query.data;
-  const maxBar = Math.max(1, ...(report?.series.flatMap(item => [item.sales, item.expenses]) ?? []));
+  const maxBar = Math.max(1, ...(report?.series.flatMap(item => [item.income, item.expenses]) ?? []));
 
   function exportCsv() {
     if (!report) return;
@@ -40,8 +41,13 @@ export default function Reports() {
       ['Vendas', report.totals.sales], ['Quantidade de vendas', report.totals.saleCount], ['Ticket médio', report.totals.averageTicket],
       ['Lucro bruto estimado', report.totals.grossProfit], ['Receitas', report.totals.income], ['Despesas', report.totals.expenses], ['Saldo', report.totals.balance],
       ['Ordens de serviço', report.totals.orders], ['Novos clientes', report.totals.newCustomers], ['Agendamentos', report.totals.appointments], [],
-      ['Vendas e despesas por dia', 'Vendas', 'Despesas', 'Agendamentos'],
-      ...report.series.map(item => [item.date, item.sales, item.expenses, item.appointments]), [],
+      ['Recebimentos de OS', report.totals.serviceIncome], ['Estornos de OS', report.totals.serviceRefunds],
+      ['Compras registradas', report.totals.purchases], ['A receber', report.totals.pendingIncome], ['A pagar', report.totals.pendingExpenses],
+      ['Valor das OS criadas', report.totals.serviceQuoted], ['Custo das peças das OS criadas', report.totals.servicePartsCost], ['Resultado estimado das OS criadas', report.totals.serviceResult], [],
+      ['Receitas e despesas por dia', 'Receitas', 'Despesas', 'Agendamentos'],
+      ...report.series.map(item => [item.date, item.income, item.expenses, item.appointments]), [],
+      ['Fornecedor', 'Registros de compra', 'Compras no período', 'Pagamentos líquidos no período'],
+      ...report.suppliers.map(item => [item.name, item.purchases, item.purchased, item.paid]), [],
       ['Produtos mais vendidos', 'Quantidade', 'Total'],
       ...report.topProducts.map(item => [item.name, item.quantity, item.total]),
     ];
@@ -61,6 +67,10 @@ export default function Reports() {
     { label: 'Ordens de serviço', value: String(report.totals.orders), note: `${report.totals.newCustomers} cliente(s) novo(s)`, icon: Wrench, tone: 'orange' },
     { label: 'Agendamentos', value: String(report.totals.appointments), note: `${report.totals.completedAppointments} concluído(s)`, icon: Users, tone: 'blue' },
     { label: 'Produtos com estoque baixo', value: String(report.totals.lowStock), note: 'No estoque atual', icon: Package, tone: 'orange' },
+    { label: 'Serviços recebidos', value: money(report.totals.serviceIncome), note: `${money(report.totals.serviceRefunds)} em estornos no período`, icon: Wrench, tone: 'green' },
+    { label: 'Compras registradas', value: money(report.totals.purchases), note: 'Compras no período, pagas ou a pagar; exclui canceladas', icon: ShoppingBag, tone: 'orange' },
+    { label: 'Contas pendentes', value: money(report.totals.pendingExpenses), note: `${money(report.totals.pendingIncome)} a receber · data prevista no período`, icon: BarChart3, tone: 'violet' },
+    { label: 'Resultado estimado das OS', value: money(report.totals.serviceResult), note: `OS criadas no período: ${money(report.totals.serviceQuoted)} cobrados menos ${money(report.totals.servicePartsCost)} em peças; exclui canceladas/sem conserto`, icon: Wrench, tone: 'green' },
   ] : [];
 
   return <div className="page-stack">
@@ -69,9 +79,10 @@ export default function Reports() {
     {query.error && <p className="feedback error">{query.error.message || 'Não foi possível carregar os relatórios.'}</p>}
     {query.isLoading ? <p className="feedback">Carregando relatórios...</p> : report && <>
       <section className="report-cards">{cards.map(card => <article className="report-card" key={card.label}><div className="report-card-top"><span>{card.label}</span><i className={`stat-icon ${card.tone}`}><card.icon size={18}/></i></div><strong>{card.value}</strong><small>{card.note}</small></article>)}</section>
-      <section className="panel report-chart-panel"><div className="panel-heading"><div><h3>Vendas e despesas por dia</h3><p>Vendas de produtos e despesas pagas no período.</p></div><div className="report-legend"><span><i className="report-dot report-sales-dot"/>Vendas</span><span><i className="report-dot report-expenses-dot"/>Despesas</span></div></div>
-        <div className="report-chart-scroll"><div className="report-bars">{report.series.map(item => <div className="report-bar-day" key={item.date} title={`${new Date(`${item.date}T12:00:00`).toLocaleDateString('pt-BR')}: vendas ${money(item.sales)} · despesas ${money(item.expenses)}`}><div className="report-bar-pair"><i className="report-sales-bar" style={{ height: `${Math.max(item.sales ? 3 : 0, item.sales / maxBar * 150)}px` }}/><i className="report-expenses-bar" style={{ height: `${Math.max(item.expenses ? 3 : 0, item.expenses / maxBar * 150)}px` }}/></div><small>{new Date(`${item.date}T12:00:00`).getDate()}</small></div>)}</div></div>
+      <section className="panel report-chart-panel"><div className="panel-heading"><div><h3>Receitas e despesas por dia</h3><p>Vendas, recebimentos de serviços, compras pagas e outros lançamentos realizados. Estornos entram na direção oposta.</p></div><div className="report-legend"><span><i className="report-dot report-sales-dot"/>Receitas</span><span><i className="report-dot report-expenses-dot"/>Despesas</span></div></div>
+        <div className="report-chart-scroll"><div className="report-bars">{report.series.map(item => <div className="report-bar-day" key={item.date} title={`${new Date(`${item.date}T12:00:00`).toLocaleDateString('pt-BR')}: receitas ${money(item.income)} · despesas ${money(item.expenses)}`}><div className="report-bar-pair"><i className="report-sales-bar" style={{ height: `${Math.max(item.income ? 3 : 0, item.income / maxBar * 150)}px` }}/><i className="report-expenses-bar" style={{ height: `${Math.max(item.expenses ? 3 : 0, item.expenses / maxBar * 150)}px` }}/></div><small>{new Date(`${item.date}T12:00:00`).getDate()}</small></div>)}</div></div>
       </section>
+      <section className="panel"><div className="panel-heading"><div><h3>Compras e pagamentos por fornecedor</h3><p>Compras seguem a data da compra. Pagamentos líquidos seguem a data de pagamento ou estorno e podem incluir compras de outros períodos.</p></div></div>{report.suppliers.length ? <div className="table-scroll"><table><thead><tr><th>FORNECEDOR</th><th>REGISTROS DE COMPRA</th><th>COMPRAS NO PERÍODO</th><th>PAGAMENTOS LÍQUIDOS</th></tr></thead><tbody>{report.suppliers.map(s => <tr key={s.id}><td>{s.name}</td><td>{s.purchases}</td><td>{money(s.purchased)}</td><td>{money(s.paid)}</td></tr>)}</tbody></table></div> : <p className="report-empty">Nenhuma compra ou pagamento vinculado no período.</p>}</section>
       <div className="report-tables-grid">
         <section className="panel report-table-panel"><div className="panel-heading"><div><h3>Ordens por status</h3><p>{report.totals.orders} ordem(ns) criada(s) no período.</p></div></div>{report.ordersByStatus.length ? <div className="report-status-list">{report.ordersByStatus.map(item => <div key={item.status}><span>{labels[item.status] || item.status}</span><strong>{item.count}</strong><i><b style={{ width: `${Math.max(4, item.count / report.totals.orders * 100)}%` }}/></i></div>)}</div> : <p className="report-empty">Nenhuma ordem no período.</p>}</section>
         <section className="panel report-table-panel"><div className="panel-heading"><div><h3>Produtos mais vendidos</h3><p>Classificados pela quantidade vendida.</p></div></div>{report.topProducts.length ? <div className="table-scroll"><table><thead><tr><th>PRODUTO</th><th>UNIDADES</th><th>TOTAL VENDIDO</th></tr></thead><tbody>{report.topProducts.map(item => <tr key={item.id}><td>{item.name}</td><td>{item.quantity}</td><td>{money(item.total)}</td></tr>)}</tbody></table></div> : <p className="report-empty">Nenhum produto vendido no período.</p>}</section>
